@@ -1,6 +1,6 @@
 // src/services/auth.service.ts
 
-import { auth } from "./firebase";
+import { auth, db } from "./firebase";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -9,14 +9,27 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 
-// Registrar
-export async function register(email: string, password: string) {
+import { doc, setDoc } from "firebase/firestore";
+
+// Registrar + salvar nome no Firestore
+export async function register(email: string, password: string, name: string) {
+  // Cria o usuário no Firebase Auth
   const userCredential = await createUserWithEmailAndPassword(
     auth,
     email,
     password
   );
-  return userCredential.user;
+
+  const user = userCredential.user;
+
+  // Salva dados adicionais no Firestore
+  await setDoc(doc(db, "users", user.uid), {
+    name,
+    email,
+    createdAt: new Date(),
+  });
+
+  return user;
 }
 
 // Login

@@ -18,14 +18,16 @@ import { Label } from "@/components/ui/label";
 import { Dumbbell } from "lucide-react";
 
 import { login, register } from "@/services/auth.service"; // <- IMPORT REAL
-
+import { useRouter } from "next/navigation";
 export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const router = useRouter();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -37,11 +39,11 @@ export default function LoginPage() {
           throw new Error("As senhas não coincidem.");
         }
 
-        await register(email, password);
-        alert("Conta criada com sucesso!");
+        await register(email, password, name);
+        router.push("/login");
       } else {
         await login(email, password);
-        alert("Login realizado com sucesso!");
+        router.push("/dashboard");
       }
     } catch (error: any) {
       alert("Erro: " + error.message);
@@ -85,6 +87,21 @@ export default function LoginPage() {
 
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {isRegister && (
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-foreground">
+                    Nome
+                  </Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="Seu nome"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
               {/* Email */}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-foreground">
