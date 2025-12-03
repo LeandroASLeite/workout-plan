@@ -5,15 +5,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import ExerciseSearch from "@/components/exercise-search";
 import ExerciseCard from "@/components/exercise-card";
+import { Exercise } from "@/components/exercise-card";
 
-interface Exercise {
-  id: string;
-  name: string;
-  gifUrl: string;
-  bodyPart: string;
-  target: string;
-  equipment: string;
-}
+import { searchExercises } from "@/services/exercises.service";
 
 export default function ExercisesPage() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -31,10 +25,7 @@ export default function ExercisesPage() {
     setHasSearched(true);
 
     try {
-      const response = await fetch(
-        `/api/exercises/search?query=${encodeURIComponent(query)}`
-      );
-      const data = await response.json();
+      const data = await searchExercises(query);
       setExercises(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Erro ao buscar exercícios:", error);
@@ -111,7 +102,7 @@ export default function ExercisesPage() {
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {exercises.map((exercise) => (
-                <ExerciseCard key={exercise.id} exercise={exercise} />
+                <ExerciseCard key={exercise.exerciseId} exercise={exercise} />
               ))}
             </div>
           </>
