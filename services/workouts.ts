@@ -11,6 +11,20 @@ export const fetchWorkouts = async (uid: string) => {
   return {};
 };
 
+// Buscar os exercícios de um dia específico
+export const fetchWorkoutByDay = async (uid: string, day: string) => {
+  const workouts = await fetchWorkouts(uid);
+  return workouts[day] || [];
+};
+
+// Criar um dia de treino vazio
+export const addWorkout = async (uid: string, day: string) => {
+  const workouts = await fetchWorkouts(uid);
+  if (!workouts[day]) {
+    await updateWorkout(uid, day, []);
+  }
+};
+
 // Atualizar o array de exercícios de um dia
 export const updateWorkout = async (
   uid: string,
@@ -34,8 +48,7 @@ export const updateWorkout = async (
 
 // Adicionar exercício
 export const addExercise = async (uid: string, day: string, exId: string) => {
-  const workouts = await fetchWorkouts(uid);
-  const dayList = workouts[day] || [];
+  const dayList = await fetchWorkoutByDay(uid, day);
   if (!dayList.includes(exId)) {
     await updateWorkout(uid, day, [...dayList, exId]);
   }
@@ -47,8 +60,7 @@ export const removeExercise = async (
   day: string,
   exId: string
 ) => {
-  const workouts = await fetchWorkouts(uid);
-  const dayList = workouts[day] || [];
+  const dayList = await fetchWorkoutByDay(uid, day);
   await updateWorkout(
     uid,
     day,

@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 
 type Exercise = {
   id: string;
@@ -192,18 +192,24 @@ export default function ExercisesModal({
     setVisibleTabs((prev) => ({ ...prev, [tab]: !prev[tab] }));
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex justify-center items-start pt-16 overflow-auto">
-      <div className="bg-background w-full max-w-5xl rounded-lg shadow-lg p-6 relative">
-        <div className=" mb-8">
-          <Button
-            onClick={onClose}
-            variant="ghost"
-            className="absolute top-4 right-4"
-          >
-            <X className="w-5 h-5" />
-          </Button>
-        </div>
+    <div
+      className="fixed inset-0 bg-black/50 z-50 flex justify-center items-start pt-16 overflow-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-background w-full max-w-6xl rounded-lg shadow-lg p-6 pt-20 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Botão fechar */}
+        <Button
+          onClick={onClose}
+          variant="ghost"
+          className="absolute top-4 right-4"
+        >
+          <X className="w-5 h-5" />
+        </Button>
 
+        {/* Tabs */}
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
@@ -223,8 +229,9 @@ export default function ExercisesModal({
             >
               {visibleTabs[activeTab] ? "Ocultar opções" : "Mostrar opções"}
             </Button>
+
             {visibleTabs[activeTab] && (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 mb-4">
                 {getCategoryItems().map((item) => (
                   <Button
                     key={item.name}
@@ -245,7 +252,8 @@ export default function ExercisesModal({
           </TabsContent>
         </Tabs>
 
-        <div className="max-h-[60vh] overflow-auto">
+        {/* Lista de Exercícios */}
+        <div className="max-h-[65vh] overflow-auto">
           {loadingInitial && exercises.length === 0 && (
             <div className="flex justify-center py-6">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -258,9 +266,9 @@ export default function ExercisesModal({
             </p>
           )}
 
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {filteredExercises.map((exercise) => {
-              const isAdded = addedExercises?.some(
+              const isAdded = addedExercises.some(
                 (ex) => ex.exerciseId === exercise.exerciseId
               );
 
@@ -269,16 +277,18 @@ export default function ExercisesModal({
                   key={exercise.exerciseId}
                   className="flex flex-col hover:shadow-lg transition-shadow"
                 >
+                  {/* Imagem responsiva */}
                   {exercise.gifUrl && (
-                    <div className="relative w-full h-40 sm:h-48 bg-muted overflow-hidden">
+                    <div className="relative w-full max-h-52 sm:max-h-64 bg-muted flex justify-center items-center overflow-hidden">
                       <img
                         src={exercise.gifUrl}
                         alt={exercise.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-auto object-contain"
                       />
                     </div>
                   )}
-                  <CardHeader className="flex justify-between items-center pb-2">
+
+                  <CardHeader className="flex justify-between items-start py-2">
                     <CardTitle className="text-sm sm:text-base line-clamp-2">
                       {exercise.name}
                     </CardTitle>
@@ -290,7 +300,8 @@ export default function ExercisesModal({
                       {isAdded ? "Adicionado" : "Adicionar"}
                     </Button>
                   </CardHeader>
-                  <CardContent className="flex-1 space-y-1">
+
+                  <CardContent className="flex-1 flex flex-wrap gap-1">
                     {exercise.targetMuscles?.map((m) => (
                       <Badge key={m} className="text-xs">
                         {m}
@@ -307,7 +318,6 @@ export default function ExercisesModal({
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
             </div>
           )}
-
           <div ref={loadMoreRef} />
         </div>
       </div>

@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-
-import type React from "react";
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast, Toaster } from "react-hot-toast"; // Toast
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,8 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dumbbell } from "lucide-react";
 
-import { login, register } from "@/services/auth.service"; // <- IMPORT REAL
-import { useRouter } from "next/navigation";
+import { login, register } from "@/services/auth.service";
+
 export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState("");
@@ -28,32 +27,43 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const router = useRouter();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
       if (isRegister) {
-        // validação
         if (password !== confirmPassword) {
-          throw new Error("As senhas não coincidem.");
+          toast.error("As senhas não coincidem.");
+          return;
         }
 
         await register(email, password, name);
-        router.push("/login");
+        toast.success("Registro concluído! Você pode fazer login agora.");
+
+        // Troca para o modo login
+        setIsRegister(false);
+        setEmail("");
+        setPassword("");
+        setConfirmPassword("");
       } else {
         await login(email, password);
+        toast.success("Login realizado com sucesso!");
         router.push("/dashboard");
       }
     } catch (error: any) {
-      alert("Erro: " + error.message);
+      toast.error(error?.message || "Erro desconhecido. Tente novamente.");
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background px-4 py-12">
+      {/* Toaster precisa estar aqui para mostrar os toasts */}
+      <Toaster position="top-right" />
+
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="mb-8 text-center">
@@ -102,7 +112,7 @@ export default function LoginPage() {
                   />
                 </div>
               )}
-              {/* Email */}
+
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-foreground">
                   Email
@@ -117,7 +127,6 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* Senha */}
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-foreground">
                   Senha
@@ -132,7 +141,6 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* Confirmar Senha (apenas Registro) */}
               {isRegister && (
                 <div className="space-y-2">
                   <Label htmlFor="confirm-password" className="text-foreground">
@@ -149,7 +157,6 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Botão */}
               <Button type="submit" disabled={isLoading} className="w-full">
                 {isLoading
                   ? "Processando..."
@@ -159,7 +166,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* Alternar login/registro */}
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
                 {isRegister ? "Já tem uma conta?" : "Não tem uma conta?"}
@@ -177,7 +183,6 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Voltar */}
             <div className="mt-4 text-center">
               <Link href="/" className="text-sm text-primary hover:underline">
                 Voltar para home
