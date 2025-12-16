@@ -1,6 +1,4 @@
 /** @type {import('next').NextConfig} */
-const isProd = process.env.NODE_ENV === "production";
-
 const nextConfig = {
   images: {
     remotePatterns: [
@@ -12,8 +10,6 @@ const nextConfig = {
       },
     ],
   },
-  basePath: isProd ? "/workout-plan" : "",
-  assetPrefix: isProd ? "/workout-plan/" : "",
 };
 
 module.exports = nextConfig;
