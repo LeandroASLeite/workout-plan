@@ -17,17 +17,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, Dumbbell } from "lucide-react";
 
-type Exercise = {
-  id: string;
-  exerciseId: string;
-  name: string;
-  gifUrl: string;
-  targetMuscles: string[];
-  bodyParts: string[];
-  equipments: string[];
-  secondaryMuscles: string[];
-  instructions: string[];
-};
 const fixedMuscles = [
   "pectorals", // Peitoral
   "lats", // Dorsais (latissimus dorsi)

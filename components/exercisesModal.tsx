@@ -16,18 +16,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, X } from "lucide-react";
 
-type Exercise = {
-  id: string;
-  exerciseId: string;
-  name: string;
-  gifUrl: string;
-  targetMuscles: string[];
-  secondaryMuscles: string[];
-  equipments: string[];
-  bodyParts: string[];
-  instructions: string[];
-};
-
 type Props = {
   onClose: () => void;
   onSelectExercise: (exercise: Exercise) => void;

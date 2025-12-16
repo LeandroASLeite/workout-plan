@@ -11,16 +11,6 @@ import ExercisesModal from "@/components/exercisesModal";
 import ConfirmationModal from "@/components/confirmationModal";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
-type Exercise = {
-  id: string;
-  exerciseId: string;
-  name: string;
-  gifUrl: string;
-  targetMuscles: string[];
-  secondaryMuscles: string[];
-  equipments: string[];
-};
-
 const daysOfWeek = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
 export default function Dashboard() {
