@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   getBodyPart,
   getMuscles,
@@ -28,6 +28,18 @@ type Exercise = {
   secondaryMuscles: string[];
   instructions: string[];
 };
+const fixedMuscles = [
+  "pectorals", // Peitoral
+  "lats", // Dorsais (latissimus dorsi)
+  "quads", // Quadríceps
+  "glutes", // Glúteos
+  "abs", // Abdômen
+  "deltoids", // Ombros
+  "biceps", // Bíceps
+  "triceps", // Tríceps
+  "hamstrings", // Isquiotibiais
+  "calves", // Panturrilhas
+];
 
 export default function ExercisesPage() {
   const [bodyParts, setBodyParts] = useState<Array<{ name: string }>>([]);
@@ -47,13 +59,15 @@ export default function ExercisesPage() {
   } | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
-
   const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextPageUrl, setNextPageUrl] = useState<string | null>(null);
 
-  // Carrega apenas os dados das categorias no início (mantive isso,
-  // mas não os exibimos até o usuário clicar em "Mostrar ...").
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Carrega categorias no início
   useEffect(() => {
     async function load() {
       try {
@@ -62,48 +76,93 @@ export default function ExercisesPage() {
           getMuscles(),
           getEquipments(),
         ]);
-
         setBodyParts(bp.data || []);
         setMuscles(ms.data || []);
         setEquipments(eq.data || []);
       } catch (err) {
         console.error(err);
       } finally {
-        setInitialLoading(false);
+        setLoadingInitial(false);
       }
     }
     load();
   }, []);
 
-  // Busca exercícios ao clicar numa opção
-  async function buscarExercicios(
+  // Fetch de exercícios
+  const fetchExercises = useCallback(
+    async (
+      name: string,
+      category: "muscle" | "equipment" | "bodyPart",
+      url?: string
+    ) => {
+      if (!url) setExercises([]); // se for novo filtro, limpa a lista
+
+      if (url) setLoadingMore(true);
+      else setLoadingInitial(true);
+
+      try {
+        let res;
+        if (!url) {
+          if (category === "muscle") res = await getExerciseByMuscle(name);
+          if (category === "equipment")
+            res = await getExerciseByEquipment(name);
+          if (category === "bodyPart") res = await getExerciseByBodyPart(name);
+        } else {
+          // fetch da próxima página usando a mesma API
+          res = await fetch(url).then((r) => r.json());
+        }
+
+        if (res?.data) {
+          setExercises((prev) => [...prev, ...res.data]);
+          setNextPageUrl(res.metadata?.nextPage || null);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingInitial(false);
+        setLoadingMore(false);
+      }
+    },
+    []
+  );
+
+  const buscarExercicios = (
     name: string,
     category: "muscle" | "equipment" | "bodyPart"
-  ) {
-    setLoading(true);
-    setExercises([]);
+  ) => {
     setSelectedFilter({ name, category });
+    fetchExercises(name, category);
+  };
 
-    try {
-      let res;
+  // Infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
 
-      if (category === "muscle") res = await getExerciseByMuscle(name);
-      if (category === "equipment") res = await getExerciseByEquipment(name);
-      if (category === "bodyPart") res = await getExerciseByBodyPart(name);
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          nextPageUrl &&
+          selectedFilter &&
+          !loadingMore
+        ) {
+          fetchExercises(
+            selectedFilter.name,
+            selectedFilter.category,
+            nextPageUrl
+          );
+        }
+      },
+      { rootMargin: "200px" }
+    );
 
-      if (res?.data) setExercises(res.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
+    observerRef.current.observe(loadMoreRef.current);
+    return () => observerRef.current?.disconnect();
+  }, [nextPageUrl, selectedFilter, fetchExercises, loadingMore]);
 
   const filteredExercises = useMemo(() => {
     if (!searchQuery.trim()) return exercises;
-
     const q = searchQuery.toLowerCase();
-
     return exercises.filter(
       (ex) =>
         ex.name.toLowerCase().includes(q) ||
@@ -118,16 +177,18 @@ export default function ExercisesPage() {
         return bodyParts;
       case "equipment":
         return equipments;
+      case "muscle":
+        // usa a lista fixa
+        return fixedMuscles.map((name) => ({ name }));
       default:
-        return muscles;
+        return [];
     }
   };
 
-  const toggleVisibleTab = (tab: string) => {
+  const toggleVisibleTab = (tab: string) =>
     setVisibleTabs((prev) => ({ ...prev, [tab]: !prev[tab] }));
-  };
 
-  if (initialLoading) {
+  if (loadingInitial) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-2">
@@ -179,7 +240,6 @@ export default function ExercisesPage() {
             </TabsList>
 
             <TabsContent value={activeTab} className="mt-6">
-              {/* Botão para mostrar/ocultar as opções da tab selecionada */}
               <div className="mb-4">
                 <Button
                   onClick={() => toggleVisibleTab(activeTab)}
@@ -204,7 +264,6 @@ export default function ExercisesPage() {
                 </Button>
               </div>
 
-              {/* Só exibe as opções se o usuário clicou em "Mostrar ..." */}
               {visibleTabs[activeTab] ? (
                 <div className="flex flex-wrap gap-2">
                   {getCategoryItems().map((item) => (
@@ -252,7 +311,7 @@ export default function ExercisesPage() {
             </Card>
           )}
 
-          {loading && (
+          {loadingInitial && exercises.length === 0 && (
             <div className="flex justify-center py-12">
               <div className="flex flex-col items-center gap-2">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -263,20 +322,22 @@ export default function ExercisesPage() {
             </div>
           )}
 
-          {!loading && selectedFilter && filteredExercises.length === 0 && (
-            <Card className="border-dashed">
-              <CardContent className="py-12 text-center">
-                <p className="text-lg font-medium">
-                  Nenhum exercício encontrado
-                </p>
-                <p className="text-muted-foreground">
-                  Tente mudar a opção selecionada ou refinar a busca.
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          {!loadingInitial &&
+            selectedFilter &&
+            filteredExercises.length === 0 && (
+              <Card className="border-dashed">
+                <CardContent className="py-12 text-center">
+                  <p className="text-lg font-medium">
+                    Nenhum exercício encontrado
+                  </p>
+                  <p className="text-muted-foreground">
+                    Tente mudar a opção selecionada ou refinar a busca.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
-          {!loading && filteredExercises.length > 0 && (
+          {filteredExercises.length > 0 && (
             <>
               <p className="text-sm text-muted-foreground mb-4">
                 {filteredExercises.length} exercício
@@ -298,15 +359,12 @@ export default function ExercisesPage() {
                         />
                       </div>
                     )}
-
                     <CardHeader className="pb-3">
                       <CardTitle className="text-lg line-clamp-2">
                         {exercise.name}
                       </CardTitle>
                     </CardHeader>
-
                     <CardContent className="flex-1 space-y-3">
-                      {/* MÚSCULOS ALVO */}
                       {exercise.targetMuscles?.length > 0 && (
                         <div>
                           <p className="text-xs font-semibold text-muted-foreground mb-2">
@@ -321,8 +379,6 @@ export default function ExercisesPage() {
                           </div>
                         </div>
                       )}
-
-                      {/* MÚSCULOS SECUNDÁRIOS */}
                       {exercise.secondaryMuscles?.length > 0 && (
                         <div>
                           <p className="text-xs font-semibold text-muted-foreground mb-2">
@@ -341,8 +397,6 @@ export default function ExercisesPage() {
                           </div>
                         </div>
                       )}
-
-                      {/* EQUIPAMENTOS */}
                       {exercise.equipments?.length > 0 && (
                         <div>
                           <p className="text-xs font-semibold text-muted-foreground mb-2">
@@ -365,6 +419,14 @@ export default function ExercisesPage() {
                   </Card>
                 ))}
               </div>
+
+              {loadingMore && (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              )}
+
+              <div ref={loadMoreRef} />
             </>
           )}
         </div>
