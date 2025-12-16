@@ -8,6 +8,7 @@ import {
   getExerciseByMuscle,
   getExerciseByEquipment,
   getExerciseByBodyPart,
+  getNextPage,
 } from "@/services/exerciseApi.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -102,7 +103,7 @@ export default function ExercisesModal({
             res = await getExerciseByEquipment(name);
           if (category === "bodyPart") res = await getExerciseByBodyPart(name);
         } else {
-          res = await fetch(url).then((r) => r.json());
+          res = await getNextPage(url);
         }
 
         if (res?.data) {

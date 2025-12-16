@@ -8,6 +8,7 @@ import {
   getExerciseByMuscle,
   getExerciseByEquipment,
   getExerciseByBodyPart,
+  getNextPage,
 } from "@/services/exerciseApi.service";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -98,7 +99,7 @@ export default function ExercisesPage() {
           if (category === "bodyPart") res = await getExerciseByBodyPart(name);
         } else {
           // fetch da próxima página usando a mesma API
-          res = await fetch(url).then((r) => r.json());
+          res = await getNextPage(url);
         }
 
         if (res?.data) {
