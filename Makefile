@@ -1,4 +1,4 @@
 run:
-	pnpm install
-	pnpm install firebase
-	pnpm dev
+	npx pnpm install
+	npx pnpm install firebase
+	npx pnpm dev

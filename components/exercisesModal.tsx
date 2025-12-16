@@ -21,6 +21,7 @@ type Props = {
   onSelectExercise: (exercise: Exercise) => void;
   addedExercises: Exercise[];
 };
+type TabType = "muscle" | "bodyPart" | "equipment";
 
 const fixedMuscles = [
   "pectorals",
@@ -42,14 +43,14 @@ export default function ExercisesModal({
 }: Props) {
   const [bodyParts, setBodyParts] = useState<{ name: string }[]>([]);
   const [equipments, setEquipments] = useState<{ name: string }[]>([]);
-  const [activeTab, setActiveTab] = useState<
-    "muscle" | "bodyPart" | "equipment"
-  >("muscle");
-  const [visibleTabs, setVisibleTabs] = useState({
+  const [activeTab, setActiveTab] = useState<TabType>("muscle");
+
+  const [visibleTabs, setVisibleTabs] = useState<Record<TabType, boolean>>({
     muscle: false,
     bodyPart: false,
     equipment: false,
   });
+
   const [selectedFilter, setSelectedFilter] = useState<{
     name: string;
     category: "muscle" | "equipment" | "bodyPart";
@@ -176,7 +177,7 @@ export default function ExercisesModal({
     }
   };
 
-  const toggleVisibleTab = (tab: string) =>
+  const toggleVisibleTab = (tab: TabType) =>
     setVisibleTabs((prev) => ({ ...prev, [tab]: !prev[tab] }));
 
   return (
@@ -188,7 +189,6 @@ export default function ExercisesModal({
         className="bg-background w-full max-w-6xl rounded-lg shadow-lg p-6 pt-20 relative"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Botão fechar */}
         <Button
           onClick={onClose}
           variant="ghost"
@@ -197,10 +197,9 @@ export default function ExercisesModal({
           <X className="w-5 h-5" />
         </Button>
 
-        {/* Tabs */}
         <Tabs
           value={activeTab}
-          onValueChange={setActiveTab}
+          onValueChange={(value) => setActiveTab(value as TabType)}
           className="w-full mb-4"
         >
           <TabsList className="grid w-full grid-cols-3">
