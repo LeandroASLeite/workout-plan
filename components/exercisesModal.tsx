@@ -1,30 +1,34 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   getBodyPart,
-  getMuscles,
   getEquipments,
   getExerciseByMuscle,
   getExerciseByEquipment,
   getExerciseByBodyPart,
   getNextPage,
 } from "@/services/exerciseApi.service";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, X } from "lucide-react";
+
+type TabType = "muscle" | "bodyPart" | "equipment";
+
+type CategoryItem = {
+  name: string;
+};
 
 type Props = {
   onClose: () => void;
   onSelectExercise: (exercise: Exercise) => void;
   addedExercises: Exercise[];
 };
-type TabType = "muscle" | "bodyPart" | "equipment";
 
-const fixedMuscles = [
+const fixedMuscles: CategoryItem[] = [
   "pectorals",
   "lats",
   "quads",
@@ -35,152 +39,179 @@ const fixedMuscles = [
   "triceps",
   "hamstrings",
   "calves",
-];
+].map((m) => ({ name: m }));
+
+// ========================
+// RETRY COM BACKOFF
+// ========================
+async function fetchWithRetry<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delay = 800,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (err: any) {
+    const isTooMany = err?.response?.status === 429;
+
+    if (retries > 0 && isTooMany) {
+      await new Promise((res) => setTimeout(res, delay));
+      return fetchWithRetry(fn, retries - 1, delay * 2);
+    }
+
+    throw err;
+  }
+}
 
 export default function ExercisesModal({
   onClose,
   onSelectExercise,
   addedExercises = [],
 }: Props) {
-  const [bodyParts, setBodyParts] = useState<{ name: string }[]>([]);
-  const [equipments, setEquipments] = useState<{ name: string }[]>([]);
+  const [bodyParts, setBodyParts] = useState<CategoryItem[]>([]);
+  const [equipments, setEquipments] = useState<CategoryItem[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>("muscle");
-
-  const [visibleTabs, setVisibleTabs] = useState<Record<TabType, boolean>>({
-    muscle: false,
-    bodyPart: false,
-    equipment: false,
-  });
 
   const [selectedFilter, setSelectedFilter] = useState<{
     name: string;
-    category: "muscle" | "equipment" | "bodyPart";
+    category: TabType;
   } | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [loadingInitial, setLoadingInitial] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [nextPageUrl, setNextPageUrl] = useState<string | null>(null);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-  const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Carregar categorias
+  const [allExercises, setAllExercises] = useState<Exercise[]>([]);
+  const [nextPage, setNextPage] = useState<string | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // ========================
+  // LOAD CATEGORIAS
+  // ========================
   useEffect(() => {
     async function load() {
       try {
-        const [bp, ms, eq] = await Promise.all([
-          getBodyPart(),
-          getMuscles(),
-          getEquipments(),
+        const [bpRes, eqRes] = await Promise.all([
+          fetchWithRetry(() => getBodyPart()),
+          fetchWithRetry(() => getEquipments()),
         ]);
-        setBodyParts(bp.data || []);
-        setEquipments(eq.data || []);
+
+        setBodyParts(bpRes.data || []);
+        setEquipments(eqRes.data || []);
       } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingInitial(false);
+        console.error("Erro ao carregar categorias:", err);
       }
     }
+
     load();
   }, []);
 
-  // Fetch exercícios
-  const fetchExercises = useCallback(
-    async (
-      name: string,
-      category: "muscle" | "equipment" | "bodyPart",
-      url?: string
-    ) => {
-      if (!url) setExercises([]);
-      if (url) setLoadingMore(true);
-      else setLoadingInitial(true);
+  // ========================
+  // FETCH EXERCÍCIOS
+  // ========================
+  const fetchExercises = async (name: string, category: TabType) => {
+    if (loading) return;
 
-      try {
-        let res;
-        if (!url) {
-          if (category === "muscle") res = await getExerciseByMuscle(name);
-          if (category === "equipment")
-            res = await getExerciseByEquipment(name);
-          if (category === "bodyPart") res = await getExerciseByBodyPart(name);
-        } else {
-          res = await getNextPage(url);
-        }
+    setLoading(true);
 
-        if (res?.data) {
-          setExercises((prev) => [...prev, ...res.data]);
-          setNextPageUrl(res.metadata?.nextPage || null);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingInitial(false);
-        setLoadingMore(false);
+    try {
+      let res;
+
+      if (category === "muscle") {
+        res = await fetchWithRetry(() => getExerciseByMuscle(name));
       }
-    },
-    []
-  );
 
-  const buscarExercicios = (
-    name: string,
-    category: "muscle" | "equipment" | "bodyPart"
-  ) => {
+      if (category === "equipment") {
+        res = await fetchWithRetry(() => getExerciseByEquipment(name));
+      }
+
+      if (category === "bodyPart") {
+        res = await fetchWithRetry(() => getExerciseByBodyPart(name));
+      }
+
+      if (res?.data) {
+        setAllExercises(res.data);
+        setNextPage(res.metadata?.nextPage || null);
+      } else {
+        setAllExercises([]);
+        setNextPage(null);
+      }
+    } catch (err) {
+      console.error("Erro ao buscar exercícios:", err);
+      setAllExercises([]);
+      setNextPage(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ========================
+  // LOAD MORE
+  // ========================
+  const loadMore = async () => {
+    if (!nextPage || loadingMore) return;
+
+    setLoadingMore(true);
+
+    try {
+      const res = await fetchWithRetry(() => getNextPage(nextPage));
+
+      if (res?.data) {
+        setAllExercises((prev) => [...prev, ...res.data]);
+        setNextPage(res.metadata?.nextPage || null);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar mais:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // ========================
+  // SELECT FILTER (ANTI-SPAM)
+  // ========================
+  const handleSelect = (name: string, category: TabType) => {
+    if (loading || loadingMore) return;
+
     setSelectedFilter({ name, category });
+    setAllExercises([]);
+    setNextPage(null);
+
     fetchExercises(name, category);
   };
 
-  // Infinite scroll
-  useEffect(() => {
-    if (!loadMoreRef.current) return;
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (
-          entries[0].isIntersecting &&
-          nextPageUrl &&
-          selectedFilter &&
-          !loadingMore
-        ) {
-          fetchExercises(
-            selectedFilter.name,
-            selectedFilter.category,
-            nextPageUrl
-          );
-        }
-      },
-      { rootMargin: "200px" }
-    );
-
-    observerRef.current.observe(loadMoreRef.current);
-    return () => observerRef.current?.disconnect();
-  }, [nextPageUrl, selectedFilter, fetchExercises, loadingMore]);
-
+  // ========================
+  // FILTRO LOCAL
+  // ========================
   const filteredExercises = useMemo(() => {
-    if (!searchQuery.trim()) return exercises;
+    if (!searchQuery.trim()) return allExercises;
+
     const q = searchQuery.toLowerCase();
-    return exercises.filter(
+
+    return allExercises.filter(
       (ex) =>
         ex.name.toLowerCase().includes(q) ||
         ex.targetMuscles?.some((m) => m.toLowerCase().includes(q)) ||
-        ex.equipments?.some((e) => e.toLowerCase().includes(q))
+        ex.equipments?.some((e) => e.toLowerCase().includes(q)),
     );
-  }, [exercises, searchQuery]);
+  }, [allExercises, searchQuery]);
 
-  const getCategoryItems = () => {
+  const getCategoryItems = (): CategoryItem[] => {
     switch (activeTab) {
       case "bodyPart":
         return bodyParts;
       case "equipment":
         return equipments;
       case "muscle":
-        return fixedMuscles.map((name) => ({ name }));
+        return fixedMuscles;
       default:
         return [];
     }
   };
 
-  const toggleVisibleTab = (tab: TabType) =>
-    setVisibleTabs((prev) => ({ ...prev, [tab]: !prev[tab] }));
-
+  // ========================
+  // UI
+  // ========================
   return (
     <div
       className="fixed inset-0 bg-black/50 z-50 flex justify-center items-start pt-16 overflow-auto"
@@ -200,86 +231,53 @@ export default function ExercisesModal({
 
         <Tabs
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value as TabType)}
-          className="w-full mb-4"
+          onValueChange={(v) => setActiveTab(v as TabType)}
         >
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid grid-cols-3 w-full">
             <TabsTrigger value="muscle">Músculos</TabsTrigger>
             <TabsTrigger value="bodyPart">Partes do Corpo</TabsTrigger>
             <TabsTrigger value="equipment">Equipamentos</TabsTrigger>
           </TabsList>
 
-          <TabsContent value={activeTab} className="mt-4">
-            <Button
-              onClick={() => toggleVisibleTab(activeTab)}
-              variant="outline"
-              className="w-full mb-2"
-            >
-              {visibleTabs[activeTab] ? "Ocultar opções" : "Mostrar opções"}
-            </Button>
-
-            {visibleTabs[activeTab] && (
-              <div className="flex flex-wrap gap-2 mb-4">
-                {getCategoryItems().map((item) => (
-                  <Button
-                    key={item.name}
-                    size="sm"
-                    variant={
-                      selectedFilter?.name === item.name &&
-                      selectedFilter?.category === activeTab
-                        ? "default"
-                        : "outline"
-                    }
-                    onClick={() => buscarExercicios(item.name, activeTab)}
-                  >
-                    {item.name}
-                  </Button>
-                ))}
-              </div>
-            )}
+          <TabsContent value={activeTab}>
+            <div className="flex flex-wrap gap-2 my-4">
+              {getCategoryItems().map((item) => (
+                <Button
+                  key={`${item.name}-${activeTab}`}
+                  size="sm"
+                  variant={
+                    selectedFilter?.name === item.name ? "default" : "outline"
+                  }
+                  onClick={() => handleSelect(item.name, activeTab)}
+                >
+                  {item.name}
+                </Button>
+              ))}
+            </div>
           </TabsContent>
         </Tabs>
 
-        {/* Lista de Exercícios */}
         <div className="max-h-[65vh] overflow-auto">
-          {loadingInitial && exercises.length === 0 && (
+          {loading && (
             <div className="flex justify-center py-6">
-              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              <Loader2 className="animate-spin" />
             </div>
-          )}
-
-          {filteredExercises.length === 0 && !loadingInitial && (
-            <p className="text-center text-muted-foreground py-6">
-              Nenhum exercício encontrado
-            </p>
           )}
 
           <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {filteredExercises.map((exercise) => {
               const isAdded = addedExercises.some(
-                (ex) => ex.exerciseId === exercise.exerciseId
+                (ex) => ex.exerciseId === exercise.exerciseId,
               );
 
               return (
-                <Card
-                  key={exercise.exerciseId}
-                  className="flex flex-col hover:shadow-lg transition-shadow"
-                >
-                  {/* Imagem responsiva */}
+                <Card key={exercise.exerciseId}>
                   {exercise.gifUrl && (
-                    <div className="relative w-full max-h-52 sm:max-h-64 bg-muted flex justify-center items-center overflow-hidden">
-                      <img
-                        src={exercise.gifUrl}
-                        alt={exercise.name}
-                        className="w-full h-auto object-contain"
-                      />
-                    </div>
+                    <img src={exercise.gifUrl} alt={exercise.name} />
                   )}
 
-                  <CardHeader className="flex justify-between items-start py-2">
-                    <CardTitle className="text-sm sm:text-base line-clamp-2">
-                      {exercise.name}
-                    </CardTitle>
+                  <CardHeader>
+                    <CardTitle>{exercise.name}</CardTitle>
                     <Button
                       size="sm"
                       onClick={() => onSelectExercise(exercise)}
@@ -289,11 +287,9 @@ export default function ExercisesModal({
                     </Button>
                   </CardHeader>
 
-                  <CardContent className="flex-1 flex flex-wrap gap-1">
+                  <CardContent className="flex flex-wrap gap-1">
                     {exercise.targetMuscles?.map((m) => (
-                      <Badge key={m} className="text-xs">
-                        {m}
-                      </Badge>
+                      <Badge key={m}>{m}</Badge>
                     ))}
                   </CardContent>
                 </Card>
@@ -301,12 +297,13 @@ export default function ExercisesModal({
             })}
           </div>
 
-          {loadingMore && (
-            <div className="flex justify-center py-4">
-              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+          {nextPage && (
+            <div className="flex justify-center mt-6">
+              <Button onClick={loadMore} disabled={loadingMore}>
+                {loadingMore ? "Carregando..." : "Carregar mais"}
+              </Button>
             </div>
           )}
-          <div ref={loadMoreRef} />
         </div>
       </div>
     </div>
